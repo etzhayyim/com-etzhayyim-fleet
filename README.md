@@ -20,6 +20,12 @@ StateGraph, with an append-only audit ledger.
   coordination tick (no unbounded inner loop). `interrupt-before
   #{:human-signoff}` is real human-in-the-loop. The injected `:materialize` hook
   is the single git writer, reached only for accepted proposals.
+- **Runner** (`fleet.runner`) — the kotoba-code seam: `coding-run` turns a bounded
+  coding session into the fleet agent's `:run` fn, running it against a
+  **capturing host** so the session's `write_file`s become proposal data (never a
+  git write). The session driver is injected (`:session!`) — plug in kotoba-code's
+  `build-agent`+`run-task` in production (needs `OR_KEY`/Murakumo gateway for a
+  live model). Contract-tested with a mock session.
 
 The invariant that lets ~20 parallel coding agents share one repo without git
 conflict: **agents only append proposals + hold leases; exactly one governed
