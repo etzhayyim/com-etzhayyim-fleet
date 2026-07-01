@@ -32,12 +32,16 @@ StateGraph, with an append-only audit ledger.
   **gated** (test-cmd run in the worktree) before proposing — a red gate proposes
   nothing (never a broken edit). Worktrees live under `.fleet-wt/` and are removed
   after use.
-- **Driver** (`fleet.driver`) — the durable outer loop for a node: `run-node!`
-  repeats *agents claim open work → run → propose → governor drains → close the
-  unit*, bounded by a `:budget`. Crash-recoverable with **no bespoke recovery
-  code** — a crashed agent's held lease just expires (TTL) and its work reopens
-  next round. Tested: full-drain, idempotent re-run, crash-recovery-via-TTL,
-  budget bound.
+- **Driver** (`fleet.driver`) — the durable outer loop + multi-node roles.
+  `run-node!` (single node) repeats *agents claim open work → run → propose →
+  governor drains → close the unit*, bounded by `:budget`, crash-recoverable via
+  lease TTL. For deployment scale (F4) it splits into **`agent-round!`** (runs on
+  every node) and **`govern!`** (runs on exactly ONE node — the single git
+  writer). Many nodes share one Datom graph; the optimistic lease resolves
+  cross-node contention with no lock server. See [`docs/DEPLOY.md`](docs/DEPLOY.md)
+  for the 2-PC × ~20-agent runbook. Tested: full-drain, idempotent re-run,
+  crash-recovery-via-TTL, budget bound, two-nodes-one-governor, cross-node lease
+  exclusion.
 
 The invariant that lets ~20 parallel coding agents share one repo without git
 conflict: **agents only append proposals + hold leases; exactly one governed

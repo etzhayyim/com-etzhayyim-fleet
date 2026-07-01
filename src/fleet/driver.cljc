@@ -1,67 +1,81 @@
 (ns fleet.driver
-  "Durable outer loop for one fleet node — the bounded, crash-recoverable harness
-  the ADR calls for. A StateGraph models ONE coordination tick; THIS is the
-  repeating driver: each round every idle agent claims an open work-unit, runs a
-  bounded coding session (the injected `run` fn — kotoba-code in prod), and
-  proposes; the FleetCoordinatorActor then drains, materializing accepted writes,
-  CLOSING their work-units, and releasing the leases.
+  "Durable outer loop + multi-node roles (ADR-2606302000 F1/F2/F4).
 
-  Bounded by a `:budget` (max rounds). Crash-recoverable because ALL state is the
-  append-only log: restart the loop on the same store and a crashed agent's held
-  lease simply expires (TTL), freeing its work for another agent next round — no
-  bespoke recovery code. With the kotoba-db backend the store is persisted, so
-  recovery survives process restarts too."
+  A StateGraph models ONE coordination tick; THIS is the repeating driver around
+  it, split into the two roles a deployment needs:
+
+    agent-round!  — runs on EVERY node: idle agents claim open work, run a bounded
+                    coding session (injected `run` fn), and propose. Many nodes may
+                    run this against ONE shared Datom graph; the optimistic lease
+                    resolves cross-node contention deterministically — no extra
+                    coordination, no lock server.
+    govern!       — runs on exactly ONE node: the FleetCoordinatorActor drains all
+                    pending proposals, materializing accepted writes (the single
+                    git writer), closing their work-units, releasing leases. One
+                    governor per repo preserves the single-writer invariant across
+                    the whole fleet.
+
+  `run-node!` composes both for the single-node case. Bounded by `:budget`.
+  Crash-recoverable with NO bespoke code: a crashed agent's held lease expires
+  (TTL) and its work reopens; all state is the append-only log (persisted on the
+  kotoba-db backend, so recovery survives process/machine restarts)."
   (:require [langgraph.graph :as g]
             [fleet.actor :as actor]
             [kotoba.fleet.agent :as agent]
             [kotoba.fleet.governor :as gov]
             [kotoba.fleet.lease :as lease]))
 
-(defn- drive-governor!
-  "Drive the coordinator until no proposals remain pending (auto-resume sign-offs).
-  The materialize hook is the single git writer: it records the write, closes the
-  work-unit, and releases its lease."
-  [db {:keys [now policy gate sink]}]
-  (let [act (actor/build
-             {:now now :policy policy :gate gate
-              :materialize (fn [{:keys [work agent]}]
-                             (swap! sink conj work)
-                             (agent/close-work! db work)
-                             (lease/release! db {:work work :agent agent :now now}))})]
+(defn agent-round!
+  "One agent round on a node: pair this node's `agents` (round-robin) with the
+  currently-open work and claim → run → propose each. Returns the outcomes. Safe
+  to run on many nodes against one shared store — losers of the optimistic claim
+  simply back off. Opts: :agents :run :ttl-ms :now."
+  [db {:keys [agents run ttl-ms now] :or {ttl-ms 600000}}]
+  (assert (seq agents) "agent-round! needs at least one agent")
+  (mapv (fn [[ag unit]]
+          (agent/claim-and-propose!
+           db {:unit unit :agent ag :ttl-ms ttl-ms :now now :run run}))
+        (map vector (cycle agents) (map :work/unit (agent/open-work db now)))))
+
+(defn govern!
+  "Run the governor (the single git writer for a repo) until no proposals remain
+  pending, auto-resuming sign-offs. `:materialize` is the real git write (default
+  no-op); it is wrapped to also close the work-unit and release its lease. Returns
+  the vector of materialized work-units. Opts: :now :policy :gate :materialize."
+  [db {:keys [now policy gate materialize]}]
+  (let [done (atom [])
+        act  (actor/build
+              {:now now :policy policy :gate gate
+               :materialize (fn [{:keys [work agent] :as p}]
+                              (when materialize (materialize p))
+                              (swap! done conj work)
+                              (agent/close-work! db work)
+                              (lease/release! db {:work work :agent agent :now now}))})]
     (loop [i 0]
       (when (and (seq (gov/pending-proposals db)) (< i 1000))
         (let [tid (str "gov-" now "-" i)
               r   (g/run* act {:db db} {:thread-id tid :now now})]
           (when (= :interrupted (:status r))
             (g/run* act nil {:thread-id tid})))
-        (recur (inc i))))))
+        (recur (inc i))))
+    @done))
 
 (defn run-node!
-  "Run a node's durable loop over `db`. Opts:
-    :agents  — agent-ids available on this node (round-robin onto open work)
-    :run     — the fleet run fn (kotoba-code session; a mock in tests)
-    :budget  — max rounds (default 100)
-    :ttl-ms  — lease TTL (default 10 min); a crashed agent's work reopens after this
-    :now-fn  — (fn [round] → logical-time) so leases age across rounds
-    :policy :gate — passed to the FleetGovernor
-  Returns {:materialized [work…] :rounds n :remaining open-work-count}."
-  [db {:keys [agents run budget ttl-ms now-fn policy gate]
+  "Single-node durable loop = agent-round! + govern! per round until the queue is
+  drained or `:budget` rounds elapse. Opts: :agents :run :budget :ttl-ms :now-fn
+  :policy :gate. Returns {:materialized [work…] :rounds n :remaining open-count}."
+  [db {:keys [agents run budget ttl-ms now-fn policy gate materialize]
        :or   {budget 100 ttl-ms 600000 now-fn (fn [r] (* (inc r) 1000))}}]
   (assert (seq agents) "run-node! needs at least one agent")
-  (let [sink (atom [])]
+  (let [all (atom [])]
     (loop [round 0]
       (let [now  (now-fn round)
             open (agent/open-work db now)]
         (if (or (>= round budget)
                 (and (empty? open) (empty? (gov/pending-proposals db))))
-          {:materialized @sink
-           :rounds round
-           :remaining (count (agent/open-work db now))}
+          {:materialized @all :rounds round :remaining (count (agent/open-work db now))}
           (do
-            ;; agent phase: pair idle agents with open work, claim → run → propose
-            (doseq [[ag unit] (map vector (cycle agents) (map :work/unit open))]
-              (agent/claim-and-propose!
-               db {:unit unit :agent ag :ttl-ms ttl-ms :now now :run run}))
-            ;; governor phase: drain (materialize closes + releases)
-            (drive-governor! db {:now now :policy policy :gate gate :sink sink})
+            (agent-round! db {:agents agents :run run :ttl-ms ttl-ms :now now})
+            (swap! all into (govern! db {:now now :policy policy :gate gate
+                                         :materialize materialize}))
             (recur (inc round))))))))

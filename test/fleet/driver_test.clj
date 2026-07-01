@@ -5,6 +5,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [fleet.driver :as driver]
             [kotoba.fleet.agent :as agent]
+            [kotoba.fleet.governor :as gov]
             [kotoba.fleet.lease :as lease]
             [kotoba.fleet.store :as store]))
 
@@ -43,6 +44,33 @@
       (let [{:keys [materialized]}
             (driver/run-node! db {:agents ["healthy"] :run edit-run :budget 10})]
         (is (= ["src/a.clj"] materialized) "work recovered and materialized after the crash")))))
+
+;; ── F4: multi-node roles over one shared Datom graph ──
+
+(deftest two-agent-nodes-one-governor-no-double-work
+  (testing "agents on 2 nodes share one graph; a single governor materializes each unit once"
+    (let [db (store/mem-store)]                       ; the shared kotoba-db graph (in-mem stand-in)
+      (doseq [u ["src/a.clj" "src/b.clj" "src/c.clj" "src/d.clj"]]
+        (agent/enqueue! db {:unit u :created-by "root"}))
+      ;; PC1 and PC2 each run an agent round against the SAME store
+      (driver/agent-round! db {:agents ["pc1-a1" "pc1-a2"] :run edit-run :now 1000})
+      (driver/agent-round! db {:agents ["pc2-a1" "pc2-a2"] :run edit-run :now 1000})
+      ;; exactly ONE node runs the governor (single git writer)
+      (let [done (driver/govern! db {:now 1000})]
+        (is (= #{"src/a.clj" "src/b.clj" "src/c.clj" "src/d.clj"} (set done)) "all units materialized")
+        (is (apply distinct? done) "each unit materialized exactly once across both nodes")
+        (is (empty? (gov/pending-proposals db)) "queue fully drained")))))
+
+(deftest cross-node-lease-exclusion
+  (testing "two nodes racing for the same unit — one proposes, the other backs off"
+    (let [db (store/mem-store)]
+      (agent/enqueue! db {:unit "src/hot.clj" :created-by "root"})
+      (let [r1 (agent/claim-and-propose! db {:unit "src/hot.clj" :agent "pc1-a1" :ttl-ms 999 :now 1000 :run edit-run})
+            r2 (agent/claim-and-propose! db {:unit "src/hot.clj" :agent "pc2-a1" :ttl-ms 999 :now 1000 :run edit-run})]
+        (is (= :proposed (:status r1)) "PC1 won the optimistic claim")
+        (is (= :contended (:status r2)) "PC2 lost — no lock server, no double-propose")
+        (let [done (driver/govern! db {:now 1000})]
+          (is (= ["src/hot.clj"] done) "the hot unit is materialized exactly once"))))))
 
 (deftest budget-bounds-the-loop
   (testing "the loop never exceeds its round budget"
