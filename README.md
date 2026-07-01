@@ -26,6 +26,12 @@ StateGraph, with an append-only audit ledger.
   git write). The session driver is injected (`:session!`) — plug in kotoba-code's
   `build-agent`+`run-task` in production (needs `OR_KEY`/Murakumo gateway for a
   live model). Contract-tested with a mock session.
+- **Worktree** (`fleet.worktree`) — F3 per-agent isolation: `worktree-run` runs
+  each coding session in its OWN detached git worktree, so reads and test-runs
+  never collide across agents and the main tree is untouched. Captured writes are
+  **gated** (test-cmd run in the worktree) before proposing — a red gate proposes
+  nothing (never a broken edit). Worktrees live under `.fleet-wt/` and are removed
+  after use.
 - **Driver** (`fleet.driver`) — the durable outer loop for a node: `run-node!`
   repeats *agents claim open work → run → propose → governor drains → close the
   unit*, bounded by a `:budget`. Crash-recoverable with **no bespoke recovery
