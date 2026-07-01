@@ -71,11 +71,34 @@ clojure -M:dev -m fleet.node   # loops agent-round! (agent) / govern! (governor)
 bb fleet <(kotoba graph export $FLEET_GRAPH)   # kotoba.fleet.view snapshot
 ```
 
-> `fleet.node/-main` (the env-driven launcher) is the remaining glue: read
-> `FLEET_ROLE`/`FLEET_GRAPH`/model creds, build the kotoba-db-backed store, and
-> loop the matching role. It needs live kotobase.net creds + a model key, so it is
-> the deployment step, not a unit-testable one. The roles it calls
-> (`agent-round!` / `govern!`) are contract-tested (`fleet.driver-test`).
+`fleet.node/-main` is the env-driven launcher: it reads `FLEET_ROLE` /
+`FLEET_AGENTS` / `FLEET_GRAPH` / `OR_KEY`, builds the store + run fn, and runs the
+matching role for one bounded round (`run-role!`). The default no-creds path is a
+local smoke; production sets `FLEET_GRAPH` + `OR_KEY` and wires the kotoba-db
+store + kotoba-code session (see the ns doc).
+
+### Resident install (one bounded round per interval)
+
+`deploy/install-node.sh` installs `fleet.node` as a resident service — a macOS
+**LaunchAgent** (`StartInterval`) or a Linux **systemd user timer**. Each firing
+runs one bounded round and exits; state persists in the shared log, so the
+interval loop is naturally crash-safe.
+
+```bash
+# on each PC: N agent workers, relaunched every 60s
+deploy/install-node.sh --role agent --node pc1 --agents pc1-a1,pc1-a2,pc1-a3 \
+    --graph "$FLEET_GRAPH" --or-key "$OR_KEY" --interval 60
+
+# on exactly ONE PC additionally: the single governor (git writer)
+deploy/install-node.sh --role governor --node pc1-gov --graph "$FLEET_GRAPH" --interval 30
+
+deploy/install-node.sh --dry-run …   # render + print the unit, install nothing
+deploy/install-node.sh --uninstall --node pc1
+```
+
+`murakumo bb provision`/`bb up` place the kotoba binaries + these units across the
+Tailscale fleet; `deploy/systemd/fleet-node@.{service,timer}` are the Linux
+equivalents. The rendered LaunchAgent is `plutil`-valid.
 
 ## Why this is safe at scale
 

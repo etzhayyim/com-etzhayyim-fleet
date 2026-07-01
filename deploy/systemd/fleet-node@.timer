@@ -1,0 +1,14 @@
+# Relaunch a resident fleet node every INTERVAL (default 60s). Each firing runs
+# one bounded round; all state lives in the shared log, so rounds are resumable.
+#   systemctl --user enable --now fleet-node@pc2-agent.timer
+[Unit]
+Description=kotoba fleet node (%i) — periodic coordination round
+
+[Timer]
+OnBootSec=30
+OnUnitActiveSec=60
+AccuracySec=5
+Unit=fleet-node@%i.service
+
+[Install]
+WantedBy=timers.target

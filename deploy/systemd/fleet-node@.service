@@ -1,0 +1,14 @@
+# Linux systemd service for a resident fleet node (one bounded round per start).
+# Paired with fleet-node@.timer. Instance name = the node id, e.g.
+#   systemctl --user start fleet-node@pc2-agent.service
+# Env is read from %h/.config/fleet-node/%i.env (FLEET_ROLE/AGENTS/GRAPH/OR_KEY/…).
+[Unit]
+Description=kotoba fleet node (%i) — one coordination round
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/fleet/com-etzhayyim-fleet
+EnvironmentFile=%h/.config/fleet-node/%i.env
+ExecStart=/usr/bin/env clojure -M:dev -m fleet.node
+Nice=10

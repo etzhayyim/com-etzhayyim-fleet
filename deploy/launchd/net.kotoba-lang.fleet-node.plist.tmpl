@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- macOS LaunchAgent for a resident fleet node. One launch = one bounded round
+     (fleet.node/-main); StartInterval relaunches it, so the node keeps making
+     progress with all state in the shared log. Rendered by deploy/install-node.sh. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>net.kotoba-lang.fleet-node.@NODE@</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-lc</string>
+    <string>cd '@REPO@' &amp;&amp; exec clojure -M:dev -m fleet.node</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>FLEET_NODE</key><string>@NODE@</string>
+    <key>FLEET_ROLE</key><string>@ROLE@</string>
+    <key>FLEET_AGENTS</key><string>@AGENTS@</string>
+    <key>FLEET_BUDGET</key><string>@BUDGET@</string>
+    <key>FLEET_GRAPH</key><string>@GRAPH@</string>
+    <key>OR_KEY</key><string>@OR_KEY@</string>
+  </dict>
+  <key>StartInterval</key><integer>@INTERVAL@</integer>
+  <key>RunAtLoad</key><true/>
+  <key>ProcessType</key><string>Background</string>
+  <key>StandardOutPath</key><string>@LOGDIR@/fleet-node.@NODE@.out.log</string>
+  <key>StandardErrorPath</key><string>@LOGDIR@/fleet-node.@NODE@.err.log</string>
+</dict>
+</plist>
