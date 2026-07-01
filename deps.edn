@@ -1,0 +1,25 @@
+{:paths ["src"]
+ ;; FleetCoordinatorActor — the deployed, sealed instance of the kotoba-fleet
+ ;; coordination substrate. langgraph-clj brings langchain-clj transitively
+ ;; (both .cljc, portable). kotoba-fleet provides the lease/governor/ledger
+ ;; primitives; this repo seals a coordinator intelligence node behind an
+ ;; independent FleetGovernor on a StateGraph.
+ :deps {io.github.com-junkawasaki/langgraph-clj
+        {:local/root "../../com-junkawasaki/langgraph-clj"}
+        io.github.kotoba-lang/kotoba-fleet
+        {:local/root "../../kotoba-lang/kotoba-fleet"}}
+ :aliases
+ {;; offline workspace dev — pin transitive langchain-clj to local checkout
+  :dev {:override-deps
+        {io.github.com-junkawasaki/langchain-clj
+         {:local/root "../../com-junkawasaki/langchain-clj"}}}
+  ;; clojure -M:dev:run → drive the demo coordination scenario
+  :run {:main-opts ["-m" "fleet.run"]}
+  :test {:extra-paths ["test"]
+         :extra-deps {io.github.cognitect-labs/test-runner
+                      {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
+         :main-opts ["-m" "cognitect.test-runner"]
+         :exec-fn cognitect.test-runner.api/test}
+  :lint {:replace-deps {clj-kondo/clj-kondo {:mvn/version "2024.11.14"}}
+         :main-opts    ["-m" "clj-kondo.main"
+                        "--lint" "src" "test" "--fail-level" "error"]}}}
