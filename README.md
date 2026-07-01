@@ -48,6 +48,12 @@ StateGraph, with an append-only audit ledger.
   smoke (in-memory store + echo run, seeded queue — `clojure -M:dev -m
   fleet.node`). Production wires the kotoba-db store + a kotoba-code session and
   calls `run-role!` (see the ns doc + `docs/DEPLOY.md`).
+- **kotoba-native residency** (`deploy/kotoba/`) — the ~20 agents run **through
+  the kotoba mesh, not `sh`**: `fleet_agent.clj` is a WASM `on-tick` component
+  (one agent round per firing, pure datom ops), deployed via `kotoba app deploy
+  deploy/kotoba/fleet.app.edn --publish` — the mesh is the scheduler. The one
+  governor (git writer) stays a host process (`deploy/install-node.sh --role
+  governor`). See `docs/DEPLOY.md`.
 
 The invariant that lets ~20 parallel coding agents share one repo without git
 conflict: **agents only append proposals + hold leases; exactly one governed

@@ -77,28 +77,40 @@ matching role for one bounded round (`run-role!`). The default no-creds path is 
 local smoke; production sets `FLEET_GRAPH` + `OR_KEY` and wires the kotoba-db
 store + kotoba-code session (see the ns doc).
 
-### Resident install (one bounded round per interval)
+### Residency — kotoba-native (agents) + host governor
 
-`deploy/install-node.sh` installs `fleet.node` as a resident service — a macOS
-**LaunchAgent** (`StartInterval`) or a Linux **systemd user timer**. Each firing
-runs one bounded round and exits; state persists in the shared log, so the
-interval loop is naturally crash-safe.
+Run the fleet **through the kotoba mesh, not `sh`**. The two roles residence
+differently, because the governor writes git (a host operation) and the agents
+don't:
+
+**Agents (~20) — a kotoba WASM component.** They only lease + propose over the
+graph (pure datom ops), so they compile clj→WASM and run as a scaled `on-tick`
+component. The mesh IS the scheduler — no LaunchAgent, no `clojure` shell:
 
 ```bash
-# on each PC: N agent workers, relaunched every 60s
-deploy/install-node.sh --role agent --node pc1 --agents pc1-a1,pc1-a2,pc1-a3 \
-    --graph "$FLEET_GRAPH" --or-key "$OR_KEY" --interval 60
-
-# on exactly ONE PC additionally: the single governor (git writer)
-deploy/install-node.sh --role governor --node pc1-gov --graph "$FLEET_GRAPH" --interval 30
-
-deploy/install-node.sh --dry-run …   # render + print the unit, install nothing
-deploy/install-node.sh --uninstall --node pc1
+# deploy the agent component to the lattice (clj→WASM at --publish); the mesh
+# fires fleet-agent/on-tick every interval on each eligible node.
+kotoba app deploy deploy/kotoba/fleet.app.edn --publish --url http://<node>:8080
+#   or fleet-wide, with drift-reconcile + self-heal:
+murakumo bb reconcile murakumo.app.edn --apply          # add a :manifest entry → deploy/kotoba/fleet.app.edn
 ```
 
-`murakumo bb provision`/`bb up` place the kotoba binaries + these units across the
-Tailscale fleet; `deploy/systemd/fleet-node@.{service,timer}` are the Linux
-equivalents. The rendered LaunchAgent is `plutil`-valid.
+`deploy/kotoba/fleet-agent.clj` is the component (`on-tick` = one agent round);
+`deploy/kotoba/fleet.app.edn` declares `:scale`, the `:tick` trigger, and
+`:requires #{:cap/datom}`.
+
+**Governor (exactly one) — a host process.** The single git writer can't be a
+WASM guest; run it host-side on one node via `fleet.node` role=governor. This is
+the only place the LaunchAgent/systemd unit is used:
+
+```bash
+deploy/install-node.sh --role governor --node pc1-gov --graph "$FLEET_GRAPH" --interval 30
+deploy/install-node.sh --dry-run …          # render + print the unit, install nothing
+```
+
+`murakumo bb provision`/`bb up` place the kotoba binaries + the agent components +
+the one governor unit across the Tailscale fleet; `deploy/systemd/fleet-node@.{service,timer}`
+are the Linux equivalents for the governor. The rendered LaunchAgent is `plutil`-valid.
 
 ## Why this is safe at scale
 
