@@ -26,6 +26,12 @@ StateGraph, with an append-only audit ledger.
   git write). The session driver is injected (`:session!`) — plug in kotoba-code's
   `build-agent`+`run-task` in production (needs `OR_KEY`/Murakumo gateway for a
   live model). Contract-tested with a mock session.
+- **Driver** (`fleet.driver`) — the durable outer loop for a node: `run-node!`
+  repeats *agents claim open work → run → propose → governor drains → close the
+  unit*, bounded by a `:budget`. Crash-recoverable with **no bespoke recovery
+  code** — a crashed agent's held lease just expires (TTL) and its work reopens
+  next round. Tested: full-drain, idempotent re-run, crash-recovery-via-TTL,
+  budget bound.
 
 The invariant that lets ~20 parallel coding agents share one repo without git
 conflict: **agents only append proposals + hold leases; exactly one governed
