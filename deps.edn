@@ -13,8 +13,8 @@
   :dev {:override-deps
         {io.github.com-junkawasaki/langchain-clj
          {:local/root "../../com-junkawasaki/langchain-clj"}}}
-  ;; clojure -M:dev:run → drive the demo coordination scenario
-  :run {:main-opts ["-m" "fleet.run"]}
+  ;; clojure -M:dev:run → drive the capstone multi-agent coordination scenario
+  :run {:main-opts ["-m" "fleet.sim"]}
   :test {:extra-paths ["test"]
          :extra-deps {io.github.cognitect-labs/test-runner
                       {:git/tag "v0.5.1" :git/sha "dfb30dd"}}

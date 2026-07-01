@@ -36,9 +36,15 @@ ADR-2607010900 (this actor).
 
 ```bash
 clojure -M:lint       # clj-kondo (errors fail)
-clojure -M:dev:test   # contract tests (langchain-clj pinned to local checkout)
-clojure -M:dev:run    # demo coordination scenario
+clojure -M:dev:test   # contract + integration tests (langchain-clj pinned to local checkout)
+clojure -M:dev:run    # capstone: 8 agents, 1 repo, one governed writer (fleet.sim)
 ```
+
+`fleet.sim` is the end-to-end capstone: 8 agents across 2 PCs coordinate on one
+repo — 5 disjoint edits materialize in parallel (no git conflict), a protected
+write pauses for sign-off then materializes, an expired-lease proposal is held by
+the govern-time invariant, and a racer loses the lock-free claim and never runs.
+`fleet.integration-test` asserts these properties.
 
 ## Identity (RAD)
 
