@@ -42,6 +42,12 @@ StateGraph, with an append-only audit ledger.
   for the 2-PC × ~20-agent runbook. Tested: full-drain, idempotent re-run,
   crash-recovery-via-TTL, budget bound, two-nodes-one-governor, cross-node lease
   exclusion.
+- **Node launcher** (`fleet.node`) — env-driven entry point (`FLEET_ROLE` /
+  `FLEET_AGENTS` / `FLEET_BUDGET` / `FLEET_GRAPH` / `OR_KEY`). `run-role!`
+  dispatches `:agent`/`:governor`/`:both`; `-main` is a self-contained local
+  smoke (in-memory store + echo run, seeded queue — `clojure -M:dev -m
+  fleet.node`). Production wires the kotoba-db store + a kotoba-code session and
+  calls `run-role!` (see the ns doc + `docs/DEPLOY.md`).
 
 The invariant that lets ~20 parallel coding agents share one repo without git
 conflict: **agents only append proposals + hold leases; exactly one governed
