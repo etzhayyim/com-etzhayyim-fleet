@@ -1,0 +1,21 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://etzhayyim.com/ns/actor-manifest"
+  ],
+  "@type": "ActorManifest",
+  "id": "did:web:etzhayyim.github.io:com-etzhayyim-fleet",
+  "name": "fleet",
+  "displayName": "FleetCoordinator — kotoba-fleet Coordination Actor",
+  "displayNameJa": "艦隊調整",
+  "description": "Deployed, sealed instance of the kotoba-fleet coordination substrate: a contained coordinator intelligence node proposing which pending agent-write to advance next, always censored by an independent governor, on a langgraph-clj StateGraph with an append-only audit ledger (robotaxi-actor / ai-gftd-itonami pattern).",
+  "tier": "Tier-B",
+  "parentActor": null,
+  "firstTouchChannelInvariant": "app-aozora — com.atproto.repo.createRecord (collection com.etzhayyim.apps.fleet). publication = SPEECH (autonomous); NOT actuation.",
+  "lexicons": [
+    "com.etzhayyim.apps.fleet.coordination"
+  ],
+  "adr": {
+    "topology": "com-junkawasaki:adr:2607022300"
+  }
+}
