@@ -52,11 +52,25 @@
 ;; choosing nothing).
 
 (def allowed-infer-hosts
-  "Murakumo-fleet inference hosts only (Rider v3.3 §2(i)) — the same
-  allowlist as `tashikame.advisor`/`kouhou.advisor`/`yosoku.advisor`."
+  "Murakumo-fleet inference hosts only (Rider v3.3 §2(i)). No opaque/lock-in
+  commercial GPU by default. The com-junkawasaki tailnet entries (added
+  2026-07-13) are the same physical fleet nodes as the localhost/LAN
+  entries above, reachable via Tailscale instead — confirmed live and
+  cross-checked against the fleet's own registry
+  (https://api.murakumo.cloud/nodes)."
   #{"127.0.0.1:11434" "localhost:11434"
     "127.0.0.1:4000"  "localhost:4000"
-    "192.168.1.70:4000"})
+    "192.168.1.70:4000"
+    ;; com-junkawasaki tailnet Murakumo-fleet Ollama nodes (verified live
+    ;; 2026-07-13 against https://api.murakumo.cloud/nodes)
+    "100.98.142.59:11434"   ; dan
+    "100.66.28.79:11434"    ; zebulun
+    "100.102.78.81:11434"   ; levi
+    "100.75.169.8:11434"    ; benjamin
+    "100.89.204.30:11434"   ; issachar
+    "100.82.123.35:11434"   ; joseph
+    "100.101.27.85:11434"   ; naphtali
+    "100.81.66.86:11434"})  ; simeon
 
 (defn- host-port [url]
   (when (string? url) (second (re-find #"(?i)^[a-z]+://([^/]+)" url))))

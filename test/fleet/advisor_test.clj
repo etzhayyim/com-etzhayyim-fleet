@@ -38,6 +38,14 @@
   (advisor/assert-murakumo! "http://127.0.0.1:11434")
   (advisor/assert-murakumo! "http://192.168.1.70:4000"))
 
+(deftest assert-murakumo-accepts-tailnet-fleet-nodes
+  (testing "com-junkawasaki tailnet Murakumo-fleet Ollama nodes (verified live
+            2026-07-13) are the same physical fleet as the LAN entries, just
+            reachable via Tailscale"
+    (doseq [ip ["100.98.142.59" "100.66.28.79" "100.102.78.81" "100.75.169.8"
+                "100.89.204.30" "100.82.123.35" "100.101.27.85" "100.81.66.86"]]
+      (advisor/assert-murakumo! (str "http://" ip ":11434")))))
+
 (deftest assert-murakumo-rejects-other-hosts
   (is (thrown? Exception (advisor/assert-murakumo! "https://api.openai.com"))))
 

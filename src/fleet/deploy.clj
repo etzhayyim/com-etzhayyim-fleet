@@ -73,7 +73,10 @@
 
 (defn -main [& _]
   (let [chat  (ollama-chat-model)
-        pick  (advisor/llm-picker chat {:max-tokens 256})
+        ;; 256 is too tight for a "thinking" model (gemma4:e4b-it-qat emits a
+        ;; separate :reasoning field before :content and can burn the whole
+        ;; budget there) -- verified live 2026-07-13 against yosoku.deploy.
+        pick  (advisor/llm-picker chat {:max-tokens 1024})
         db    (store/mem-store)
         wrote (atom [])
         act   (actor/build {:now 100 :materialize #(swap! wrote conj (:work %)) :advise pick})]
