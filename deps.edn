@@ -7,7 +7,8 @@
  :deps {io.github.com-junkawasaki/langgraph-clj
         {:local/root "../../com-junkawasaki/langgraph-clj"}
         io.github.kotoba-lang/kotoba-fleet
-        {:local/root "../../kotoba-lang/kotoba-fleet"}}
+        {:local/root "../../kotoba-lang/kotoba-fleet"}
+        org.clojure/data.json {:mvn/version "2.5.1"}} ; fleet.deploy real-LLM json (same as tashikame/kouhou/yosoku)
  :aliases
  {;; offline workspace dev — pin transitive langchain-clj to local checkout
   :dev {:override-deps
