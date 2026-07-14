@@ -5,14 +5,14 @@
  ;; primitives; this repo seals a coordinator intelligence node behind an
  ;; independent FleetGovernor on a StateGraph.
  :deps {io.github.com-junkawasaki/langgraph-clj
-        {:local/root "../../com-junkawasaki/langgraph-clj"}
+        {:local/root "../../kotoba-lang/langgraph"}
         io.github.kotoba-lang/kotoba-fleet
         {:local/root "../../kotoba-lang/kotoba-fleet"}}
  :aliases
  {;; offline workspace dev — pin transitive langchain-clj to local checkout
   :dev {:override-deps
         {io.github.com-junkawasaki/langchain-clj
-         {:local/root "../../com-junkawasaki/langchain-clj"}}}
+         {:local/root "../../kotoba-lang/langchain"}}}
   ;; clojure -M:dev:run → drive the capstone multi-agent coordination scenario
   :run {:main-opts ["-m" "fleet.sim"]}
   :test {:extra-paths ["test"]
